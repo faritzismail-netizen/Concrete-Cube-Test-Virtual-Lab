@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Concrete Cube Test Virtual Lab</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <!-- Retro Arcade Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        pixel: ['"VT323"', 'monospace'], 
+                        arcade: ['"Press Start 2P"', 'cursive'] 
+                    },
+                    colors: {
+                        lab: {
+                            bg: '#5C94FC',      // Bright Arcade Sky Blue
+                            panel: '#FFFFFF',   // White panel
+                            border: '#000000',  // Black borders
+                            primary: '#FF0055', // Bright Arcade Pink/Red
+                            accent: '#0066FF',  // Bright Blue
+                            text: '#000000',    // Black text
+                            muted: '#555555',   // Gray
+                            success: '#00CC00', // Classic Green
+                            error: '#FF0000',   // Classic Red
+                            warning: '#FFCC00'  // Arcade Yellow
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: 'VT323', monospace;
+            background-color: #5C94FC;
+            color: #000000;
+            overflow-x: hidden;
+            overflow-y: auto;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            font-size: 1.25rem; 
+        }
+
+        h1, h2, h3, .font-arcade {
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+            line-height: 1.5;
+        }
+
+        /* Retro Scanlines Effect - Lightened for bright theme */
+        .scanlines {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.05) 50%,
+                rgba(0,0,0,0.05)
+            );
+            background-size: 100% 4px;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 9998;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: #E0E0E0; border-left: 2px solid #000; }
+        ::-webkit-scrollbar-thumb { background: #FF0055; border: 2px solid #000; }
+        ::-webkit-scrollbar-thumb:hover { background: #0066FF; }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+        @keyframes tamp {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(80px); }
+            100% { transform: translateY(0); }
+        }
+        @keyframes dropIn {
+            0% { transform: translateY(-50px) scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: translateY(30px) scale(1) rotate(180deg); opacity: 1; }
+            100% { transform: translateY(120px) scale(0) rotate(360deg); opacity: 0; }
+        }
+        @keyframes shakeDrum {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .blinking-text { animation: blink 1s infinite; }
+        .anim-tamp { animation: tamp 0.15s ease-in-out; }
+        .animate-drop { animation: dropIn 0.5s ease-in forwards; }
+        .anim-shake { animation: shakeDrum 0.15s ease-in-out infinite; }
+
+        /* Bright Arcade Buttons */
+        .btn-arcade {
+            border: 4px solid #000;
+            box-shadow: 6px 6px 0px 0px #000;
+            transition: all 0.05s ease-out;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-arcade:active {
+            transform: translate(6px, 6px);
+            box-shadow: 0px 0px 0px 0px #000 !important;
+        }
+
+        .btn-cyan { background: #00E5FF; color: #000; }
+        .btn-cyan:hover { background: #00B8D4; }
+        
+        .btn-pink { background: #FF0055; color: #FFF; }
+        .btn-pink:hover { background: #C5003C; }
+
+        .btn-green { background: #00E676; color: #000; }
+        .btn-green:hover { background: #00C853; }
+
+        .btn-yellow { background: #FFEA00; color: #000; }
+        .btn-yellow:hover { background: #FFD600; }
+
+        /* Game specific elements */
+        .scene { display: none; width: 100%; min-height: 100vh; position: absolute; top: 0; left: 0; }
+        .scene.active { display: flex; flex-direction: column; }
+        
+        .draggable-item { cursor: pointer; transition: transform 0.1s; }
+        .draggable-item:hover { transform: scale(1.05); }
+        .draggable-item:active { transform: scale(0.95); }
+        
+        /* Bright Pixel Art style containers */
+        .pixel-panel {
+            background-color: #FFFFFF;
+            border: 4px solid #000000;
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.8);
+            color: #000000;
+        }
+
+        /* Machine Gauge */
+        .gauge-container { position: relative; width: 150px; height: 150px; border: 4px solid #000; background: #FFF; border-radius: 50%; box-shadow: inset 4px 4px 0 rgba(0,0,0,0.1); }
+        .gauge-inner { position: absolute; top: 12px; left: 12px; right: 12px; bottom: 12px; background: #F0F0F0; border: 2px solid #CCC; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .gauge-needle { position: absolute; bottom: 50%; left: 50%; width: 4px; height: 45%; background: #FF0000; transform-origin: bottom center; transform: rotate(-135deg); transition: transform 0.1s linear; border: 1px solid #000; }
+
+        /* Particle Canvas */
+        #particle-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        
+        /* Modal Overlay */
+        .modal-overlay { background: rgba(0, 0, 0, 0.7); display: none; }
+        .modal-overlay.active { display: flex; }
+        
+        /* Image Retro Filter - adjusted for bright theme */
+        .retro-img { border: 2px solid #000; filter: contrast(1.2); }
+        .retro-img-active { filter: contrast(1.5) brightness(1.1); }
+    </style>
+</head>
+<body class="w-screen min-h-screen relative">
+
+    <div class="scanlines"></div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden fixed top-0 left-0 w-full p-4 flex justify-between items-center z-40 bg-white border-b-4 border-black shadow-[0_4px_0_rgba(0,0,0,0.2)]">
+        <div class="flex items-center gap-4">
+            <button onclick="Game.showModal('modal-pause')" class="w-12 h-12 bg-white border-4 border-black text-black flex items-center justify-center hover:bg-gray-200 transition cursor-pointer shadow-[4px_4px_0_#000]">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <div>
+                <div id="hud-level-title" class="font-arcade text-lab-primary text-[10px] md:text-xs tracking-widest mb-1">LVL 1</div>
+                <div id="hud-level-name" class="text-xl md:text-2xl font-bold">INTRODUCTION</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="hud-timer" class="hidden items-center gap-2 bg-[#FF0000] px-4 py-2 border-4 border-black shadow-[4px_4px_0_#000]">
+                <i class="fas fa-clock text-white"></i>
+                <span id="hud-time-val" class="font-arcade text-white text-xs md:text-sm">35S</span>
+            </div>
+
+            <div id="hud-lives" class="hidden items-center gap-2 bg-[#FF0055] px-4 py-2 border-4 border-black shadow-[4px_4px_0_#000]">
+                <i class="fas fa-heart text-white"></i>
+                <span id="hud-lives-val" class="font-arcade text-white text-xs md:text-sm">3</span>
+            </div>
+
+            <div class="flex items-center gap-2 bg-[#FFEA00] px-4 py-2 border-4 border-black shadow-[4px_4px_0_#000]">
+                <i class="fas fa-star text-black"></i>
+                <span id="hud-xp" class="font-arcade text-black text-xs md:text-sm">0 XP</span>
+            </div>
+            
+            <button onclick="AudioSys.toggleMute()" id="btn-mute" class="w-12 h-12 bg-[#00E5FF] border-4 border-black text-black flex items-center justify-center hover:bg-[#00B8D4] transition cursor-pointer shadow-[4px_4px_0_#000]">
+                <i id="mute-icon" class="fas fa-volume-up text-xl"></i>
+            </button>
+
+            <button onclick="Game.requestHint()" class="w-12 h-12 bg-[#FF0055] border-4 border-black text-white flex items-center justify-center hover:bg-[#C5003C] transition cursor-pointer shadow-[4px_4px_0_#000]">
+                <i class="fas fa-question text-xl"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="scene-menu" class="scene active items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#87CEEB] to-[#5C94FC]">
+        
+        <!-- Retro Grid Background Graphic (Bright) -->
+        <div class="absolute bottom-0 w-full h-1/3 bg-[linear-gradient(transparent_95%,#FFFFFF_100%),linear-gradient(90deg,transparent_95%,#FFFFFF_100%)] bg-[length:40px_40px] opacity-40" style="perspective: 500px; transform: rotateX(60deg);"></div>
+
+        <div class="z-10 flex flex-col items-center w-full max-w-lg px-6 animate-fade-in mt-10">
+            <div class="w-24 h-24 bg-[#FFEA00] border-4 border-black flex items-center justify-center mb-6 transform rotate-12 shadow-[8px_8px_0_#000]">
+                <i class="fas fa-cube text-6xl text-black"></i>
+            </div>
+            
+            <h1 class="text-3xl md:text-4xl font-arcade text-center mb-4 text-[#FFEA00] drop-shadow-[4px_4px_0_#000]">
+                CONCRETE CUBE TEST<br><span class="text-white">VIRTUAL LAB</span>
+            </h1>
+            <p class="text-[#FF0055] font-arcade text-center mb-10 text-xs md:text-sm blinking-text drop-shadow-[2px_2px_0_#FFF]">INSERT COIN TO START</p>
+            
+            <div class="w-full mb-6">
+                <input type="text" id="player-name-input" placeholder="ENTER PLAYER NAME" class="w-full bg-white border-4 border-black text-black px-4 py-3 text-center font-arcade focus:outline-none focus:bg-[#FFEA00] transition uppercase shadow-[inset_2px_2px_0_rgba(0,0,0,0.1)]" maxlength="15">
+            </div>
+            
+            <div class="w-full flex flex-col gap-6">
+                <button onclick="Game.tryStart()" class="w-full py-4 btn-arcade btn-cyan font-arcade text-sm md:text-base flex items-center justify-center gap-3">
+                    <i class="fas fa-play"></i> START GAME
+                </button>
+                <button onclick="Game.showModal('modal-notes')" class="w-full py-3 btn-arcade btn-pink font-arcade text-xs md:text-sm flex items-center justify-center gap-3">
+                    <i class="fas fa-book"></i> MS EN 12390 RULES
+                </button>
+            </div>
+            
+            <div class="mt-12 text-center bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+                <p class="text-black text-xl font-bold">DIPLOMA IN CONSTRUCTION TECHNOLOGY</p>
+                <p class="text-gray-600 text-lg mt-1 font-bold">DEPARTMENT OF CIVIL TECHNOLOGY</p>
+                <div class="mt-4 border-2 border-black text-black px-4 py-2 inline-block font-arcade text-[10px] bg-[#FFEA00]">
+                    &copy; 2026 CIKGU FARITZ & CIKGU HAFFIZ - KV MELAKA TENGAH
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-1" class="scene pt-32 pb-10 px-4 md:px-10 items-center justify-center">
+        <div class="w-full max-w-4xl flex flex-col pixel-panel border-black max-h-[85vh]">
+            <div class="p-6 md:p-10 flex-1 overflow-y-auto">
+                <div class="flex items-center gap-4 mb-8 border-b-4 border-black pb-4">
+                    <div class="w-14 h-14 bg-lab-accent border-4 border-black flex items-center justify-center text-white text-2xl shadow-[4px_4px_0_#000]">
+                        <i class="fas fa-info"></i>
+                    </div>
+                    <h2 class="text-2xl md:text-3xl font-arcade text-black">MISSION BRIEFING</h2>
+                </div>
+                
+                <div class="space-y-6 text-2xl font-bold">
+                    <p>
+                        WELCOME TO THE VIRTUAL LAB. YOUR MISSION IS TO PERFORM THE <span class="text-white font-arcade text-sm bg-lab-primary px-2 border-2 border-black">COMPRESSIVE STRENGTH TEST</span> ON A CONCRETE CUBE ACCORDING TO <span class="text-black bg-lab-warning px-2 border-2 border-black">MS EN 12390</span> STANDARDS.
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border-4 border-black p-4 bg-[#F0F8FF]">
+                            <h3 class="text-lab-accent font-arcade text-sm mb-3"><i class="fas fa-crosshairs"></i> PURPOSE</h3>
+                            <p class="text-xl">DETERMINE COMPRESSIVE STRENGTH TO ENSURE CONCRETE MEETS STRUCTURAL SAFETY DESIGN SPECS.</p>
+                        </div>
+                        <div class="border-4 border-black p-4 bg-[#FFF9C4]">
+                            <h3 class="text-black font-arcade text-sm mb-3"><i class="fas fa-hard-hat"></i> SAFETY PROTOCOL</h3>
+                            <p class="text-xl">EQUIP PPE: BOOTS, GLOVES, GOGGLES. EXERCISE CAUTION AROUND HIGH-PRESSURE MACHINERY.</p>
+                        </div>
+                    </div>
+
+                    <div class="border-4 border-black p-6 bg-white mt-6 shadow-[inset_4px_4px_0_rgba(0,0,0,0.05)]">
+                        <h3 class="text-black font-arcade text-lg mb-4">OBJECTIVES:</h3>
+                        <ul class="space-y-3 text-xl text-lab-success font-bold">
+                            <li>> SELECT REQUIRED EQUIPMENT</li>
+                            <li>> MIX CONCRETE PROPERLY</li>
+                            <li>> FILL & TAMP MOULD IN LAYERS</li>
+                            <li>> SELECT CURING ENVIRONMENT</li>
+                            <li>> EXECUTE COMPRESSION TEST</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t-4 border-black bg-gray-100 flex justify-end">
+                <button onclick="Game.nextLevel()" class="px-8 py-4 btn-arcade btn-green font-arcade text-sm flex items-center gap-3">
+                    ACCEPT MISSION <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-2" class="scene pt-32 pb-20 px-4 md:px-10 flex-col h-full">
+        <div class="text-center mb-6 shrink-0 bg-white border-4 border-black p-4 inline-block mx-auto shadow-[4px_4px_0_#000]">
+            <h2 class="text-2xl md:text-3xl font-arcade text-black">EQUIPMENT SELECT</h2>
+            <p class="text-lab-accent text-xl mt-2 font-bold">SELECT <span class="text-black bg-lab-warning border-2 border-black px-2">6 TOOLS</span> REQUIRED FOR CASTING.</p>
+        </div>
+        
+        <div class="flex-1 flex flex-col md:flex-row gap-6 min-h-[700px] md:min-h-0 max-w-[1400px] mx-auto w-full">
+            <!-- Store Room -->
+            <div class="w-full md:w-1/3 lg:w-1/4 pixel-panel p-5 flex flex-col h-[400px] md:h-auto bg-[#E3F2FD]">
+                <h3 class="font-arcade text-lab-accent text-sm mb-4 border-b-4 border-black pb-3 flex justify-between">
+                    <span><i class="fas fa-warehouse"></i> INVENTORY</span>
+                    <span class="text-[10px] text-gray-500 hidden xl:inline">TAP TO EQUIP</span>
+                </h3>
+                <div id="l2-equipment-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-2 content-start">
+                    <!-- Generated via JS -->
+                </div>
+            </div>
+            
+            <!-- Lab Table -->
+            <div class="w-full md:w-2/3 lg:w-3/4 pixel-panel p-5 flex flex-col relative min-h-[500px] md:min-h-0 bg-[#FFF9C4]">
+                <h3 class="font-arcade text-black text-sm mb-4 border-b-4 border-black pb-3">
+                    <i class="fas fa-table"></i> LAB BENCH
+                </h3>
+                
+                <div id="l2-lab-table" class="flex-1 border-4 border-dashed border-black flex flex-wrap gap-6 p-6 content-start relative bg-white overflow-y-auto">
+                    <div id="l2-table-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 pointer-events-none p-4 blinking-text">
+                        <i class="fas fa-hand-pointer text-5xl mb-4 text-black"></i>
+                        <span class="font-arcade text-sm text-center leading-loose text-black">MOVE 6 ITEMS<br>TO THIS ZONE</span>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-between items-center bg-white p-4 border-4 border-black shadow-[inset_2px_2px_0_rgba(0,0,0,0.1)] shrink-0">
+                    <span class="font-arcade text-black text-sm md:text-base">SLOTS: <span id="l2-count" class="text-lab-primary text-xl">0</span>/6</span>
+                    <button id="l2-verify-btn" onclick="Levels.level2.verify()" class="px-8 py-4 btn-arcade btn-yellow font-arcade text-sm opacity-50 pointer-events-none">
+                        VERIFY SETUP
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-3" class="scene pt-32 pb-20 px-4 md:px-10 flex-col">
+        <div class="text-center mb-6 shrink-0 bg-white border-4 border-black p-4 inline-block mx-auto shadow-[4px_4px_0_#000]">
+            <h2 class="text-2xl md:text-3xl font-arcade text-black">CONCRETE MIXING</h2>
+            <p class="text-lab-accent text-xl mt-2 font-bold">MATCH THE REQUIRED MIX RATIO. SEQUENCE: COARSE -> SAND -> CEMENT -> WATER.</p>
+        </div>
+
+        <div class="flex-1 flex flex-col md:flex-row gap-8 max-w-5xl mx-auto w-full min-h-[600px] md:min-h-0">
+            <!-- Materials & Ratio panel -->
+            <div class="w-full md:w-1/3 flex flex-col gap-4">
+                
+                <div class="bg-[#FFEA00] border-4 border-black p-4 text-center shadow-[4px_4px_0_#000]">
+                    <h3 class="font-arcade text-black text-[10px] mb-2">TARGET RATIO (C:S:A)</h3>
+                    <div id="l3-ratio-text" class="text-3xl font-pixel font-bold tracking-widest text-black">1:2:4</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 content-start">
+                    <button onclick="Levels.level3.addMaterial('coarse')" class="relative p-3 md:p-4 pixel-panel border-black hover:bg-gray-200 flex flex-col items-center gap-3 group cursor-pointer transition-colors">
+                        <div class="absolute top-2 right-2 bg-white border-2 border-black px-1 font-pixel text-sm font-bold shadow-[2px_2px_0_#000]" id="l3-count-coarse">0/4</div>
+                        <div class="w-14 h-14 mt-4 bg-gray-300 border-4 border-black flex items-center justify-center shadow-[4px_4px_0_#000]"><i class="fas fa-cubes text-3xl text-gray-600"></i></div>
+                        <span class="font-arcade text-[10px] text-center text-black">COARSE</span>
+                    </button>
+                    <button onclick="Levels.level3.addMaterial('sand')" class="relative p-3 md:p-4 pixel-panel border-black hover:bg-yellow-100 flex flex-col items-center gap-3 group cursor-pointer transition-colors">
+                        <div class="absolute top-2 right-2 bg-white border-2 border-black px-1 font-pixel text-sm font-bold shadow-[2px_2px_0_#000]" id="l3-count-sand">0/2</div>
+                        <div class="w-14 h-14 mt-4 bg-[#FCD34D] border-4 border-black flex items-center justify-center shadow-[4px_4px_0_#000]"><i class="fas fa-braille text-3xl text-yellow-700"></i></div>
+                        <span class="font-arcade text-[10px] text-center text-black">SAND</span>
+                    </button>
+                    <button onclick="Levels.level3.addMaterial('cement')" class="relative p-3 md:p-4 pixel-panel border-black hover:bg-gray-300 flex flex-col items-center gap-3 group cursor-pointer transition-colors">
+                        <div class="absolute top-2 right-2 bg-white border-2 border-black px-1 font-pixel text-sm font-bold shadow-[2px_2px_0_#000]" id="l3-count-cement">0/1</div>
+                        <div class="w-14 h-14 mt-4 bg-gray-500 border-4 border-black flex items-center justify-center shadow-[4px_4px_0_#000]"><i class="fas fa-mountain text-3xl text-gray-800"></i></div>
+                        <span class="font-arcade text-[10px] text-center text-black">CEMENT</span>
+                    </button>
+                    <button onclick="Levels.level3.addMaterial('water')" class="relative p-3 md:p-4 pixel-panel border-black hover:bg-blue-100 flex flex-col items-center gap-3 group cursor-pointer transition-colors">
+                        <div class="absolute top-2 right-2 bg-white border-2 border-black px-1 font-pixel text-sm font-bold shadow-[2px_2px_0_#000]" id="l3-count-water">0/1</div>
+                        <div class="w-14 h-14 mt-4 bg-blue-400 border-4 border-black flex items-center justify-center shadow-[4px_4px_0_#000]"><i class="fas fa-tint text-3xl text-blue-100"></i></div>
+                        <span class="font-arcade text-[10px] text-center text-black">WATER</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Animated Mixer Visual -->
+            <div class="w-full md:w-2/3 pixel-panel p-8 flex flex-col items-center justify-center relative bg-[#E0F7FA]">
+                <h3 class="absolute top-4 left-4 font-arcade text-black text-xs bg-white px-2 py-1 border-2 border-black shadow-[2px_2px_0_#000]"><i class="fas fa-sync"></i> MIXER_UNIT_01</h3>
+                
+                <div class="relative flex flex-col items-center mt-6 mb-8 w-64 h-64">
+                    <!-- Material Drop Zone -->
+                    <div id="l3-drop-zone" class="absolute top-[-40px] w-full h-12 flex justify-center z-20 pointer-events-none"></div>
+                    
+                    <!-- Mixer Drum -->
+                    <div id="l3-mixer-drum" class="w-48 h-48 rounded-full border-8 border-black bg-white relative overflow-hidden shadow-[inset_-10px_-10px_0_rgba(0,0,0,0.2),_10px_10px_0_rgba(0,0,0,0.5)] z-10 transition-transform">
+                        <!-- Inner mix level -->
+                        <div id="l3-mixer-fill" class="absolute bottom-0 w-full h-0 bg-transparent transition-all duration-500 flex items-start justify-center border-t-4 border-black/20">
+                            <!-- Surface detail -->
+                            <div id="l3-mixer-surface" class="w-[150%] h-12 bg-black/10 rounded-[50%] absolute top-[-6px] animate-[spin_4s_linear_infinite]"></div>
+                        </div>
+                        <!-- Spinner icon to show motion -->
+                        <i class="fas fa-asterisk absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-black opacity-10 animate-[spin_4s_linear_infinite]"></i>
+                    </div>
+                    <!-- Mixer Base -->
+                    <div class="w-32 h-16 border-8 border-black border-t-0 bg-gray-400 rounded-b-xl -mt-4 shadow-[10px_10px_0_rgba(0,0,0,0.5)]"></div>
+                </div>
+                
+                <div class="w-full max-w-md bg-white p-4 border-4 border-black shadow-[inset_2px_2px_0_rgba(0,0,0,0.1)]">
+                    <div class="flex justify-between font-arcade text-xs text-black mb-3">
+                        <span>PROGRESS</span>
+                        <span id="l3-progress-text" class="text-lab-primary font-bold">0/8</span>
+                    </div>
+                    <div class="w-full h-6 bg-gray-200 border-2 border-black p-1">
+                        <div id="l3-progress-bar" class="h-full bg-lab-success w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <div id="l3-sequence-display" class="mt-6 flex gap-3 flex-wrap justify-center min-h-[40px]">
+                    <!-- Sequence badges -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-4" class="scene pt-32 pb-20 px-4 md:px-10 flex-col items-center">
+        <div class="text-center mb-8 shrink-0 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+            <h2 class="text-2xl md:text-3xl font-arcade text-black">MOULDING & TAMPING</h2>
+            <p class="text-lab-accent text-xl mt-2 font-bold">FILL 150MM MOULD IN 3 LAYERS. 35 TAMPS PER LAYER.</p>
+        </div>
+
+        <div class="flex-1 w-full max-w-4xl pixel-panel p-6 md:p-10 flex flex-col md:flex-row items-center justify-around gap-10 bg-[#FFF3E0]">
+            
+            <!-- Mould Visual -->
+            <div class="relative w-64 h-64 border-8 border-black bg-white flex items-end overflow-hidden shrink-0 box-content shadow-[10px_10px_0_rgba(0,0,0,0.3)]">
+                <!-- Layers -->
+                <div id="l4-layer-1" class="absolute bottom-0 w-full h-0 bg-gray-400 transition-all duration-300 border-t-4 border-black flex items-center justify-center text-white font-arcade text-sm">L1</div>
+                <div id="l4-layer-2" class="absolute bottom-[33.3%] w-full h-0 bg-gray-400 transition-all duration-300 border-t-4 border-black flex items-center justify-center text-white font-arcade text-sm">L2</div>
+                <div id="l4-layer-3" class="absolute bottom-[66.6%] w-full h-0 bg-gray-400 transition-all duration-300 flex items-center justify-center text-white font-arcade text-sm">L3</div>
+                
+                <!-- Tamping Rod visual -->
+                <div id="l4-rod" class="absolute top-[-180px] left-[45%] w-6 h-56 bg-gray-300 border-4 border-black opacity-0 origin-bottom z-10 shadow-[2px_0_0_#fff_inset]"></div>
+                
+                <!-- Label overlay -->
+                <div id="l4-label" class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity z-20">
+                    <div class="bg-yellow-400 text-black px-4 py-3 font-pixel font-bold text-2xl border-4 border-black shadow-[4px_4px_0_#000]">SAMP-01</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex flex-col gap-5 w-full md:w-80">
+                <div class="bg-white p-4 border-4 border-black text-center mb-4 shadow-[4px_4px_0_#000]">
+                    <div class="text-xs text-gray-500 font-arcade mb-2">CURRENT STATUS</div>
+                    <div id="l4-task-instruction" class="font-pixel text-3xl text-black font-bold">AWAITING ACTION</div>
+                    <div id="l4-tamp-counter" class="text-xl font-arcade text-black hidden mt-4 bg-[#FFEA00] border-2 border-black py-2 shadow-[2px_2px_0_#000]">TAMPS: <span id="l4-tamp-val">0</span>/35</div>
+                </div>
+
+                <button id="l4-btn-fill" onclick="Levels.level4.action('fill')" class="py-4 btn-arcade btn-cyan font-arcade text-xs flex items-center justify-center gap-3">
+                    <i class="fas fa-fill-drip"></i> POUR CONCRETE
+                </button>
+                <button id="l4-btn-tamp" onclick="Levels.level4.action('tamp')" class="py-4 btn-arcade btn-yellow font-arcade text-xs flex items-center justify-center gap-3">
+                    <i class="fas fa-hammer"></i> TAMP LAYER
+                </button>
+                <button id="l4-btn-level" onclick="Levels.level4.action('level')" class="py-4 btn-arcade btn-green font-arcade text-xs flex items-center justify-center gap-3">
+                    <i class="fas fa-ruler-horizontal"></i> LEVEL SURFACE
+                </button>
+                <button id="l4-btn-label" onclick="Levels.level4.action('label')" class="py-4 btn-arcade btn-pink font-arcade text-xs flex items-center justify-center gap-3">
+                    <i class="fas fa-tag"></i> APPLY LABEL
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-5" class="scene pt-32 pb-20 px-4 md:px-10 flex-col items-center">
+        <div class="text-center mb-10 shrink-0 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+            <h2 class="text-2xl md:text-3xl font-arcade text-black">CURING ENVIRONMENT</h2>
+            <p class="text-lab-accent text-xl mt-2 font-bold">WHERE SHOULD THE DEMOULDED CUBE BE STORED?</p>
+        </div>
+
+        <div id="l5-step-1" class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+            <button onclick="Levels.level5.selectEnvironment('sun')" class="btn-arcade btn-yellow py-10 flex flex-col items-center gap-4 bg-white">
+                <i class="fas fa-sun text-6xl text-orange-500"></i>
+                <span class="font-arcade text-sm">DIRECT SUNLIGHT</span>
+            </button>
+            <button onclick="Levels.level5.selectEnvironment('room')" class="btn-arcade py-10 flex flex-col items-center gap-4 bg-gray-200 hover:bg-gray-300">
+                <i class="fas fa-door-open text-6xl text-gray-700"></i>
+                <span class="font-arcade text-sm">DRY STORE ROOM</span>
+            </button>
+            <button onclick="Levels.level5.selectEnvironment('field')" class="btn-arcade btn-green py-10 flex flex-col items-center gap-4 bg-white">
+                <i class="fas fa-tree text-6xl text-green-700"></i>
+                <span class="font-arcade text-sm">OPEN FIELD</span>
+            </button>
+            <button onclick="Levels.level5.selectEnvironment('water')" class="btn-arcade btn-cyan py-10 flex flex-col items-center gap-4 relative overflow-hidden bg-white">
+                <i class="fas fa-water text-6xl text-blue-600 z-10"></i>
+                <span class="font-arcade text-sm z-10">WATER TANK (20±2°C)</span>
+            </button>
+        </div>
+
+        <div id="l5-step-2" class="hidden w-full max-w-lg flex-col items-center animate-fade-in pixel-panel p-10">
+            <div class="text-lab-success text-6xl mb-6"><i class="fas fa-check-square drop-shadow-[4px_4px_0_#000]"></i></div>
+            <h3 class="font-arcade text-2xl mb-4 text-black text-center">LOCATION CORRECT</h3>
+            <p class="text-center text-gray-700 text-xl mb-8 font-bold">SELECT STANDARD TESTING AGE FOR FULL DESIGN STRENGTH:</p>
+            
+            <div class="w-full flex flex-col gap-5">
+                <button onclick="Levels.level5.selectDays(7)" class="w-full py-4 btn-arcade bg-white hover:bg-gray-200 font-arcade text-xs">7 DAYS (EARLY)</button>
+                <button onclick="Levels.level5.selectDays(14)" class="w-full py-4 btn-arcade bg-white hover:bg-gray-200 font-arcade text-xs">14 DAYS</button>
+                <button onclick="Levels.level5.selectDays(28)" class="w-full py-4 btn-arcade bg-white hover:bg-gray-200 font-arcade text-xs">28 DAYS (STANDARD)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-6" class="scene pt-32 pb-20 px-4 md:px-10 flex-col items-center">
+        <div class="text-center mb-8 shrink-0 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+            <h2 class="text-2xl md:text-3xl font-arcade text-black">COMPRESSION TEST</h2>
+            <p class="text-lab-accent text-xl mt-2 font-bold">OPERATE MACHINE SAFELY TO FIND FAILURE LOAD.</p>
+        </div>
+
+        <div class="flex-1 w-full max-w-5xl pixel-panel p-6 md:p-10 flex flex-col md:flex-row items-center justify-around gap-10 bg-gray-100">
+            
+            <!-- Bright Machinery Visual -->
+            <div class="relative w-full max-w-[300px] h-[400px] bg-[#FFCC00] border-8 border-black flex flex-col items-center overflow-hidden shrink-0 box-content shadow-[10px_10px_0_rgba(0,0,0,0.3)]">
+                <!-- Machine Header -->
+                <div class="w-full h-24 bg-white border-b-8 border-black flex items-center justify-center gap-6 z-30">
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-6 h-6 bg-red-800 border-4 border-black rounded-full" id="l6-led-power"></div>
+                        <span class="font-arcade text-[8px] text-black">PWR</span>
+                    </div>
+                    <div class="bg-black p-3 border-4 border-gray-600 shadow-[inset_2px_2px_0_rgba(255,255,255,0.2)]">
+                        <div class="font-pixel text-4xl text-red-500 w-32 text-right drop-shadow-[0_0_8px_#ff0000]" id="l6-digital-display">000.0</div>
+                    </div>
+                </div>
+                
+                <!-- Testing Area -->
+                <div class="flex-1 w-full relative flex items-center justify-center p-4 bg-gray-200 shadow-[inset_10px_10px_0_rgba(0,0,0,0.1)]">
+                    
+                    <!-- Top Platen -->
+                    <div id="l6-platen" class="absolute top-0 w-40 h-12 bg-gray-400 border-b-8 border-black transition-transform duration-[4000ms] linear z-20 shadow-[0_4px_0_rgba(0,0,0,0.2)]"></div>
+                    
+                    <!-- Safety Guard -->
+                    <div id="l6-guard" class="absolute inset-0 bg-blue-500/30 border-l-8 border-r-8 border-blue-600 transform translate-y-full transition-transform duration-500 z-40 flex flex-col items-center justify-center pointer-events-none">
+                        <div class="absolute inset-0 bg-[linear-gradient(transparent_95%,rgba(255,255,255,0.5)_100%),linear-gradient(90deg,transparent_95%,rgba(255,255,255,0.5)_100%)] bg-[length:20px_20px]"></div>
+                        <span class="font-arcade text-xs text-white bg-blue-600 px-2 py-1 border-2 border-black z-10 mt-20 blinking-text shadow-[2px_2px_0_#000]">GUARD SECURE</span>
+                    </div>
+
+                    <!-- Concrete Cube -->
+                    <div id="l6-cube" class="w-28 h-28 bg-gray-400 border-4 border-black relative opacity-0 transform translate-y-10 transition-all duration-500 z-10 flex items-center justify-center shadow-[4px_4px_0_rgba(0,0,0,0.2)]">
+                        <span class="font-pixel text-xl text-black font-bold">SAMP-01</span>
+                        <!-- Pixel Cracks -->
+                        <div id="l6-cracks" class="absolute inset-0 opacity-0 transition-opacity duration-100 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxwYXRoIGQ9Ik0xMCwwIEwyMCwzMCBMNSw2MCBMMzAsMTAwIE04MCwwIEw2MCw0MCBMODUsNzAgTDc1LDEwMCBNNDAsMjAgTDUwLDUwIEw4MCw4MCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+PC9zdmc+')] bg-cover"></div>
+                    </div>
+
+                    <!-- Bottom Platen -->
+                    <div class="absolute bottom-0 w-40 h-12 bg-gray-400 border-t-8 border-black z-20"></div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex flex-col gap-5 w-full max-w-[280px]">
+                <!-- Analog Gauge -->
+                <div class="bg-white p-4 border-4 border-black flex justify-center mb-4 shadow-[4px_4px_0_#000]">
+                    <div class="gauge-container">
+                        <div class="gauge-inner">
+                            <span class="font-arcade text-[10px] text-gray-600">LOAD(KN)</span>
+                            <span class="font-pixel text-3xl text-black mt-1 font-bold" id="l6-gauge-read">0</span>
+                        </div>
+                        <div id="l6-needle" class="gauge-needle"></div>
+                    </div>
+                </div>
+
+                <button id="l6-btn-place" onclick="Levels.level6.action('place')" class="py-4 btn-arcade btn-cyan font-arcade text-xs flex justify-center items-center gap-3">
+                    <i class="fas fa-hand-holding"></i> PLACE CUBE
+                </button>
+                <button id="l6-btn-guard" onclick="Levels.level6.action('guard')" class="py-4 btn-arcade btn-yellow font-arcade text-xs flex justify-center items-center gap-3 opacity-50 pointer-events-none">
+                    <i class="fas fa-shield-alt"></i> CLOSE GUARD
+                </button>
+                <button id="l6-btn-start" onclick="Levels.level6.action('start')" class="py-5 btn-arcade btn-pink font-arcade text-sm flex justify-center items-center gap-3 opacity-50 pointer-events-none">
+                    <i class="fas fa-power-off"></i> START TEST
+                </button>
+                <button id="l6-btn-next" onclick="Game.nextLevel()" class="hidden py-4 btn-arcade btn-green font-arcade text-xs flex justify-center items-center gap-2 mt-4 animate-fade-in">
+                    ANALYSIS <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scene-level-7" class="scene pt-32 pb-20 px-4 md:px-10 flex-col items-center">
+        <div class="text-center mb-10 shrink-0 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+            <h2 class="text-2xl md:text-3xl font-arcade text-black">DATA ANALYSIS</h2>
+            <p class="text-lab-accent text-xl mt-2 font-bold">CALCULATE FINAL COMPRESSIVE STRENGTH.</p>
+        </div>
+
+        <div class="w-full max-w-3xl pixel-panel p-8 md:p-10 animate-fade-in mb-10 bg-[#F5F5F5]">
+            <div class="flex items-center gap-5 mb-10 bg-white p-4 border-4 border-black shadow-[4px_4px_0_#000]">
+                <div class="w-16 h-16 bg-[#00E5FF] border-4 border-black flex items-center justify-center text-4xl text-black">
+                    <i class="fas fa-calculator"></i>
+                </div>
+                <div>
+                    <h3 class="font-arcade text-sm text-black mb-2">FORMULA DATABANK</h3>
+                    <p class="text-xl font-pixel text-lab-primary font-bold">STRENGTH (MPa) = LOAD (N) ÷ AREA (mm²)</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                <div class="bg-white p-6 border-4 border-black text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
+                    <div class="absolute top-0 left-0 w-full h-2 bg-lab-primary"></div>
+                    <div class="font-arcade text-[10px] text-gray-500 mb-4">MAX FAILURE LOAD</div>
+                    <div class="text-4xl font-pixel text-black font-bold" id="l7-load-val">000.0 kN</div>
+                    <div class="text-lg mt-4 text-lab-primary font-pixel font-bold">> CONVERT TO NEWTONS (× 1000)</div>
+                </div>
+                <div class="bg-white p-6 border-4 border-black text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
+                    <div class="absolute top-0 left-0 w-full h-2 bg-lab-accent"></div>
+                    <div class="font-arcade text-[10px] text-gray-500 mb-4">CROSS-SECTIONAL AREA</div>
+                    <div class="text-4xl font-pixel text-black font-bold">150 × 150 mm</div>
+                    <div class="text-xl mt-4 text-lab-accent font-pixel font-bold">> AREA = 22,500 mm²</div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-4 bg-white p-6 border-4 border-black shadow-[4px_4px_0_#000]">
+                <label class="font-arcade text-xs text-black flex items-center justify-between">
+                    <span>INPUT CALCULATED STRENGTH:</span>
+                    <span class="text-[10px] text-gray-500">1 DECIMAL PLACE</span>
+                </label>
+                <div class="flex flex-col md:flex-row gap-6 mt-2">
+                    <div class="relative flex-1">
+                        <input type="number" id="l7-input" step="0.1" placeholder="00.0" class="w-full bg-gray-100 border-4 border-black text-black px-5 py-4 text-3xl font-pixel font-bold focus:outline-none focus:bg-white focus:border-lab-primary transition pl-5 pr-20 uppercase shadow-[inset_2px_2px_0_rgba(0,0,0,0.1)]">
+                        <span class="absolute right-5 top-1/2 transform -translate-y-1/2 text-gray-500 font-pixel text-2xl font-bold">MPa</span>
+                    </div>
+                    <button onclick="Levels.level7.verify()" class="py-4 px-10 btn-arcade btn-green font-arcade text-sm flex items-center justify-center gap-3">
+                        <i class="fas fa-check-double"></i> VERIFY
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- Custom Alert Modal -->
+    <div id="modal-alert" class="modal-overlay fixed inset-0 z-50 items-center justify-center px-4">
+        <div class="pixel-panel w-full max-w-md animate-fade-in flex flex-col shadow-[12px_12px_0_rgba(0,0,0,0.8)]">
+            <div id="modal-alert-header" class="px-6 py-4 border-b-4 border-black font-arcade flex items-center gap-4 text-sm bg-gray-200">
+                <i id="modal-alert-icon" class="fas fa-info-circle text-xl"></i>
+                <span id="modal-alert-title">SYSTEM MESSAGE</span>
+            </div>
+            <div class="p-6 text-black text-2xl font-pixel bg-white leading-relaxed font-bold" id="modal-alert-message">
+                Message content goes here.
+            </div>
+            <div class="p-5 border-t-4 border-black bg-gray-100 flex justify-end">
+                <button onclick="UI.hideAlert()" class="px-8 py-3 btn-arcade btn-cyan font-arcade text-xs">
+                    ACKNOWLEDGE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Menu Modal -->
+    <div id="modal-pause" class="modal-overlay fixed inset-0 z-50 items-center justify-center px-4">
+        <div class="pixel-panel p-8 w-full max-w-sm animate-fade-in flex flex-col gap-6 text-center shadow-[12px_12px_0_rgba(0,0,0,0.8)] bg-white">
+            <h2 class="text-2xl font-arcade text-black blinking-text">PAUSED</h2>
+            <button onclick="Game.hideModal('modal-pause')" class="w-full py-4 btn-arcade btn-cyan font-arcade text-xs">RESUME</button>
+            <button onclick="Game.restartLevel()" class="w-full py-4 btn-arcade bg-gray-200 font-arcade text-xs">RESTART LEVEL</button>
+            <button onclick="Game.quitToMenu()" class="w-full py-4 btn-arcade btn-pink font-arcade text-xs">QUIT TO MENU</button>
+        </div>
+    </div>
+
+    <!-- Learning Notes Modal -->
+    <div id="modal-notes" class="modal-overlay fixed inset-0 z-50 items-center justify-center px-4">
+        <div class="pixel-panel w-full max-w-2xl max-h-[80vh] flex flex-col animate-fade-in shadow-[12px_12px_0_rgba(0,0,0,0.8)]">
+            <div class="px-6 py-5 border-b-4 border-black font-arcade flex justify-between items-center bg-[#FFEA00]">
+                <span class="text-sm text-black"><i class="fas fa-book mr-3"></i> DATABANK: MS EN 12390</span>
+                <button onclick="Game.hideModal('modal-notes')" class="w-10 h-10 bg-white border-4 border-black text-black hover:bg-gray-200 flex items-center justify-center transition cursor-pointer shadow-[2px_2px_0_#000]"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto text-xl text-black font-bold space-y-6 bg-white">
+                <div class="bg-[#F0F8FF] p-5 border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.1)]">
+                    <h3 class="text-lab-accent font-arcade text-xs mb-3">1. SPECIMEN SIZE</h3>
+                    <p>STANDARD CUBES ARE 150MM X 150MM X 150MM. CROSS-SECTIONAL AREA IS 22,500 MM².</p>
+                </div>
+                <div class="bg-[#FFF9C4] p-5 border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.1)]">
+                    <h3 class="text-lab-accent font-arcade text-xs mb-3">2. COMPACTION</h3>
+                    <p>FILL IN 3 EQUAL LAYERS. TAMP UNIFORMLY WITH A STANDARD ROD (AT LEAST 35 STROKES PER LAYER FOR A 150MM CUBE).</p>
+                </div>
+                <div class="bg-[#E8F5E9] p-5 border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.1)]">
+                    <h3 class="text-lab-accent font-arcade text-xs mb-3">3. CURING</h3>
+                    <p>DEMOULD AFTER 24±2 HOURS. SUBMERGE IN CURING TANK AT 20±2°C UNTIL TEST AGE (7 OR 28 DAYS).</p>
+                </div>
+                <div class="bg-[#FFEBEE] p-5 border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.1)]">
+                    <h3 class="text-lab-accent font-arcade text-xs mb-3">4. TESTING</h3>
+                    <p>APPLY LOAD CONTINUOUSLY WITHOUT SHOCK. COMPRESSIVE STRENGTH = MAX LOAD (N) / AREA (MM²).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success/End Modal -->
+    <div id="modal-success" class="modal-overlay fixed inset-0 z-50 items-center justify-center px-4">
+        <div class="pixel-panel p-10 max-w-lg w-full animate-fade-in flex flex-col items-center text-center relative overflow-hidden bg-white shadow-[12px_12px_0_rgba(0,0,0,0.8)]">
+            
+            <div class="w-24 h-24 bg-[#FFEA00] border-4 border-black flex items-center justify-center mb-6 z-10 shadow-[4px_4px_0_#000]">
+                <i class="fas fa-trophy text-6xl text-black"></i>
+            </div>
+            
+            <h2 class="text-3xl font-arcade text-lab-success mb-6 z-10 blinking-text drop-shadow-[2px_2px_0_rgba(0,0,0,0.2)]">MISSION CLEAR!</h2>
+            <p class="text-black mb-8 z-10 text-2xl font-pixel font-bold">YOU HAVE MASTERED THE CONCRETE COMPRESSIVE STRENGTH PROTOCOL.</p>
+            
+            <div class="bg-gray-100 border-4 border-black p-4 w-full mb-6 z-10 flex justify-between items-center shadow-[inset_2px_2px_0_rgba(0,0,0,0.1)]">
+                <span class="font-arcade text-black text-xs">FINAL SCORE:</span>
+                <span class="text-2xl font-arcade text-lab-accent" id="success-xp">0 XP</span>
+            </div>
+
+            <div class="w-full mb-8 z-10">
+                <h3 class="font-arcade text-black text-sm mb-2 border-b-4 border-black pb-2 text-left">LEADERBOARD</h3>
+                <div id="leaderboard-container" class="bg-white border-4 border-black p-2 h-40 overflow-y-auto text-left shadow-[inset_2px_2px_0_rgba(0,0,0,0.1)]">
+                    <!-- dynamically populated -->
+                </div>
+            </div>
+
+            <button onclick="Game.quitToMenu()" class="w-full py-5 btn-arcade btn-green font-arcade text-sm z-10">
+                RETURN TO MENU
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="modal-gameover" class="modal-overlay fixed inset-0 z-50 items-center justify-center px-4 bg-black/95">
+        <div class="w-full flex flex-col items-center justify-center text-center animate-fade-in">
+            <h1 class="text-5xl md:text-8xl font-arcade text-red-600 mb-6 tracking-widest drop-shadow-[0_0_15px_rgba(255,0,0,0.8)]">GAME OVER</h1>
+            <p class="text-white font-pixel text-2xl md:text-3xl mb-12 blinking-text font-bold">OUT OF ATTEMPTS</p>
+            <button onclick="Game.quitToMenu()" class="px-8 py-5 btn-arcade bg-transparent border-4 border-red-600 text-red-600 font-arcade text-sm md:text-base hover:bg-red-600 hover:text-white transition-colors shadow-[4px_4px_0_#ff0000]">
+                INSERT COIN (RETURN TO MENU)
+            </button>
+        </div>
+    </div>
+
+    <canvas id="particle-canvas"></canvas>
+
+    <script>
+        // --- STREAMING_CHUNK:Audio System (Tone.js) ---
+        const AudioSys = {
+            synth: null,
+            noise: null,
+            bgmSynth: null,
+            bgmLoop: null,
+            initialized: false,
+            isMuted: false,
+            
+            init() {
+                if (this.initialized) return;
+                try {
+                    // Upgraded to PolySynth to prevent timeline collisions
+                    this.synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "square" },
+                        envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }
+                    }).toDestination();
+                    this.synth.volume.value = -12;
+                    
+                    this.noise = new Tone.NoiseSynth({
+                        noise: { type: "pink" },
+                        envelope: { attack: 0.1, decay: 0.1, sustain: 1, release: 0.5 }
+                    }).toDestination();
+                    this.noise.volume.value = -15;
+
+                    this.bgmSynth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "square" },
+                        envelope: { attack: 0.02, decay: 0.1, sustain: 0.2, release: 0.5 }
+                    }).toDestination();
+                    this.bgmSynth.volume.value = -20;
+
+                    const notes = [
+                        "C4", "E4", "G4", "C5", "G4", "E4", 
+                        "A3", "C4", "E4", "A4", "E4", "C4",
+                        "F3", "A3", "C4", "F4", "C4", "A3",
+                        "G3", "B3", "D4", "G4", "D4", "B3"
+                    ];
+                    this.bgmLoop = new Tone.Sequence((time, note) => {
+                        this.bgmSynth.triggerAttackRelease(note, "16n", time);
+                    }, notes, "16n");
+                    
+                    Tone.Transport.bpm.value = 180;
+
+                    this.initialized = true;
+                } catch(e) { console.log("Audio init failed"); }
+            },
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                Tone.Destination.mute = this.isMuted;
+                const icon = document.getElementById('mute-icon');
+                const btn = document.getElementById('btn-mute');
+                
+                if(this.isMuted) {
+                    icon.classList.remove('fa-volume-up');
+                    icon.classList.add('fa-volume-mute');
+                    btn.classList.replace('bg-[#00E5FF]', 'bg-[#FF0055]');
+                    btn.classList.replace('hover:bg-[#00B8D4]', 'hover:bg-[#C5003C]');
+                    btn.classList.replace('text-black', 'text-white');
+                } else {
+                    icon.classList.remove('fa-volume-mute');
+                    icon.classList.add('fa-volume-up');
+                    btn.classList.replace('bg-[#FF0055]', 'bg-[#00E5FF]');
+                    btn.classList.replace('hover:bg-[#C5003C]', 'hover:bg-[#00B8D4]');
+                    btn.classList.replace('text-white', 'text-black');
+                }
+                this.playClick();
+            },
+            startMusic() {
+                if(this.initialized && !this.isMuted) {
+                    Tone.Transport.start();
+                    this.bgmLoop.start(0);
+                }
+            },
+            stopMusic() {
+                if(this.initialized) {
+                    this.bgmLoop.stop();
+                    Tone.Transport.stop();
+                }
+            },
+            playClick() { if(this.initialized && !this.isMuted) this.synth.triggerAttackRelease("C5", "32n", Tone.now()); },
+            playSuccess() { 
+                if(this.initialized && !this.isMuted) {
+                    const now = Tone.now();
+                    this.synth.triggerAttackRelease("C5", "16n", now);
+                    this.synth.triggerAttackRelease("E5", "16n", now + 0.1);
+                    this.synth.triggerAttackRelease("G5", "16n", now + 0.2);
+                    this.synth.triggerAttackRelease("C6", "8n", now + 0.3);
+                }
+            },
+            playError() { 
+                if(this.initialized && !this.isMuted) {
+                    const now = Tone.now();
+                    this.synth.triggerAttackRelease("C3", "8n", now);
+                    this.synth.triggerAttackRelease("G2", "4n", now + 0.15);
+                } 
+            },
+            playMachineStart() { 
+                if(this.initialized && !this.isMuted) { 
+                    this.noise.triggerRelease(Tone.now());
+                    this.noise.triggerAttack(Tone.now() + 0.05); 
+                } 
+            },
+            playMachineStop() { if(this.initialized && !this.isMuted) this.noise.triggerRelease(Tone.now()); },
+            playCrack() {
+                if(this.initialized && !this.isMuted) {
+                    const crackSynth = new Tone.MembraneSynth().toDestination();
+                    crackSynth.triggerAttackRelease("C1", "8n", Tone.now());
+                }
+            }
+        };
+
+        // --- STREAMING_CHUNK:UI & Modal System ---
+        const UI = {
+            alert(title, message, type = 'info') {
+                if (typeof Game !== 'undefined') Game.isPaused = true;
+                const modal = document.getElementById('modal-alert');
+                const titleEl = document.getElementById('modal-alert-title');
+                const msgEl = document.getElementById('modal-alert-message');
+                const headerEl = document.getElementById('modal-alert-header');
+
+                titleEl.innerText = title;
+                msgEl.innerHTML = message;
+                
+                headerEl.className = 'px-6 py-4 border-b-4 border-black font-arcade flex items-center gap-4 text-sm';
+
+                if (type === 'error') {
+                    headerEl.classList.add('bg-lab-error', 'text-white');
+                    AudioSys.playError();
+                } else if (type === 'success') {
+                    headerEl.classList.add('bg-lab-success', 'text-black');
+                    AudioSys.playSuccess();
+                } else {
+                    headerEl.classList.add('bg-lab-accent', 'text-white');
+                    AudioSys.playClick();
+                }
+
+                modal.classList.add('active');
+            },
+            hideAlert() {
+                document.getElementById('modal-alert').classList.remove('active');
+                if (typeof Game !== 'undefined') Game.isPaused = false;
+                AudioSys.playClick();
+            },
+            updateXP(val) {
+                const el = document.getElementById('hud-xp');
+                el.innerText = `${val} XP`;
+                el.parentElement.classList.add('bg-lab-success');
+                setTimeout(() => el.parentElement.classList.remove('bg-lab-success'), 150);
+            }
+        };
+
+        // --- STREAMING_CHUNK:Particle FX ---
+        const Particles = {
+            ctx: null,
+            canvas: null,
+            particles: [],
+            animFrame: null,
+            
+            init() {
+                this.canvas = document.getElementById('particle-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            },
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            },
+            burst() {
+                this.particles = [];
+                const colors = ['#FF0055', '#00E5FF', '#FFEA00', '#00E676', '#FF6600'];
+                for(let i=0; i<100; i++) {
+                    this.particles.push({
+                        x: this.canvas.width / 2,
+                        y: this.canvas.height / 2,
+                        vx: (Math.random() - 0.5) * 25,
+                        vy: (Math.random() - 0.5) * 25 - 5,
+                        size: Math.random() > 0.5 ? 12 : 20, 
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        gravity: 0.3,
+                        life: 1
+                    });
+                }
+                this.animate();
+            },
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                let active = false;
+                
+                this.particles.forEach(p => {
+                    if (p.life > 0) {
+                        active = true;
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.vy += p.gravity;
+                        p.life -= 0.01;
+                        
+                        this.ctx.globalAlpha = Math.max(0, p.life);
+                        this.ctx.fillStyle = p.color;
+                        
+                        // Draw chunky particles with borders
+                        this.ctx.fillRect(p.x, p.y, p.size, p.size); 
+                        this.ctx.strokeStyle = '#000';
+                        this.ctx.lineWidth = 2;
+                        this.ctx.strokeRect(p.x, p.y, p.size, p.size);
+                    }
+                });
+                
+                if (active) {
+                    this.animFrame = requestAnimationFrame(() => this.animate());
+                } else {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+            }
+        };
+
+        // --- STREAMING_CHUNK:Game Controller ---
+        const Game = {
+            currentLevel: 0,
+            xp: 0,
+            timeLeft: 35,
+            attempts: 3,
+            timerInterval: null,
+            isPaused: false,
+            playerName: '',
+            leaderboard: [
+                { name: 'CIKGU FARITZ', xp: 950 },
+                { name: 'M.ALI', xp: 820 },
+                { name: 'KV STUDENT', xp: 700 }
+            ],
+            
+            levelData: [
+                { title: 'LVL 1', name: 'MISSION BRIEF' },
+                { title: 'LVL 2', name: 'EQUIPMENT SELECT' },
+                { title: 'LVL 3', name: 'CONCRETE MIXING' },
+                { title: 'LVL 4', name: 'MOULDING' },
+                { title: 'LVL 5', name: 'CURING' },
+                { title: 'LVL 6', name: 'COMPRESSION TEST' },
+                { title: 'LVL 7', name: 'DATA ANALYSIS' }
+            ],
+
+            tryStart() {
+                const nameInput = document.getElementById('player-name-input').value.trim().toUpperCase();
+                if(!nameInput) {
+                    UI.alert("ERROR", "PLEASE ENTER PLAYER NAME TO START.", "error");
+                    return;
+                }
+                this.playerName = nameInput;
+                this.start();
+            },
+
+            start() {
+                Tone.start(); 
+                AudioSys.init();
+                AudioSys.startMusic();
+                Particles.init();
+                this.xp = 0;
+                this.attempts = 3;
+                this.isPaused = false;
+                UI.updateXP(0);
+                this.updateLivesUI();
+                this.switchScene('scene-level-1');
+                document.getElementById('hud').classList.remove('hidden');
+                this.currentLevel = 1;
+                this.updateHUD();
+                this.startTimer();
+                AudioSys.playClick();
+            },
+
+            nextLevel() {
+                this.addXP(100);
+                this.currentLevel++;
+                this.attempts = 3;
+                this.updateLivesUI();
+                
+                if (this.currentLevel > 7) {
+                    this.completeGame();
+                    return;
+                }
+                
+                if(this.currentLevel === 2) Levels.level2.init();
+                if(this.currentLevel === 3) Levels.level3.init();
+                if(this.currentLevel === 4) Levels.level4.init();
+                if(this.currentLevel === 5) Levels.level5.init();
+                if(this.currentLevel === 6) Levels.level6.init();
+                if(this.currentLevel === 7) Levels.level7.init();
+
+                this.switchScene(`scene-level-${this.currentLevel}`);
+                this.updateHUD();
+                this.startTimer();
+                AudioSys.playClick();
+            },
+
+            restartLevel() {
+                this.hideModal('modal-pause');
+                if(this.currentLevel === 2) Levels.level2.init();
+                if(this.currentLevel === 3) Levels.level3.init();
+                if(this.currentLevel === 4) Levels.level4.init();
+                if(this.currentLevel === 5) Levels.level5.init();
+                if(this.currentLevel === 6) Levels.level6.init();
+                if(this.currentLevel === 7) Levels.level7.init();
+                this.startTimer();
+                AudioSys.playClick();
+            },
+
+            quitToMenu() {
+                this.hideModal('modal-pause');
+                this.hideModal('modal-success');
+                this.hideModal('modal-gameover');
+                this.stopTimer();
+                AudioSys.stopMusic();
+                document.getElementById('hud').classList.add('hidden');
+                document.getElementById('player-name-input').value = '';
+                this.switchScene('scene-menu');
+                this.currentLevel = 0;
+                AudioSys.playClick();
+            },
+
+            completeGame() {
+                this.stopTimer();
+                document.getElementById('success-xp').innerText = this.xp + ' XP';
+                
+                this.leaderboard.push({ name: this.playerName, xp: this.xp });
+                this.leaderboard.sort((a, b) => b.xp - a.xp);
+                this.renderLeaderboard();
+                
+                this.showModal('modal-success');
+                Particles.burst();
+                AudioSys.playSuccess();
+            },
+
+            renderLeaderboard() {
+                const container = document.getElementById('leaderboard-container');
+                container.innerHTML = '';
+                this.leaderboard.forEach((entry, index) => {
+                    const isCurrent = entry.name === this.playerName && entry.xp === this.xp;
+                    const row = document.createElement('div');
+                    row.className = `flex justify-between items-center p-2 border-b-2 border-gray-200 font-arcade text-xs ${isCurrent ? 'bg-[#FFEA00] text-black font-bold' : 'text-gray-700'}`;
+                    row.innerHTML = `
+                        <span>${index + 1}. ${entry.name}</span>
+                        <span>${entry.xp} XP</span>
+                    `;
+                    container.appendChild(row);
+                });
+            },
+
+            switchScene(sceneId) {
+                document.querySelectorAll('.scene').forEach(el => el.classList.remove('active'));
+                document.getElementById(sceneId).classList.add('active');
+                window.scrollTo(0,0);
+            },
+
+            updateHUD() {
+                if (this.currentLevel >= 1 && this.currentLevel <= 7) {
+                    const data = this.levelData[this.currentLevel - 1];
+                    document.getElementById('hud-level-title').innerText = data.title;
+                    document.getElementById('hud-level-name').innerText = data.name;
+                }
+            },
+
+            updateLivesUI() {
+                const el = document.getElementById('hud-lives-val');
+                if (el) el.innerText = this.attempts;
+            },
+
+            addXP(amt) {
+                this.xp += amt;
+                UI.updateXP(this.xp);
+            },
+
+            showModal(id) {
+                this.isPaused = true;
+                document.getElementById(id).classList.add('active');
+                AudioSys.playClick();
+            },
+
+            hideModal(id) {
+                this.isPaused = false;
+                document.getElementById(id).classList.remove('active');
+                AudioSys.playClick();
+            },
+
+            requestHint() {
+                AudioSys.playClick();
+                const hints = {
+                    2: "YOU NEED EXACTLY 6 CORE ITEMS. (MOULD, ROD, TROWEL, OIL, SCOOP, PAN). GOGGLES AND TAPE ARE NOT FOR THIS SPECIFIC STEP.",
+                    3: "RATIO IS CEMENT:SAND:AGGREGATE. SEQUENCE: COARSE > SAND > CEMENT > WATER. CLICK ITEMS MULTIPLE TIMES TO MATCH RATIO!",
+                    4: "3 LAYERS. 35 TAMPS EACH. FOLLOW THE ONSCREEN PROMPTS.",
+                    5: "CONCRETE NEEDS WATER TO HYDRATE. FULL DESIGN STRENGTH TAKES 4 WEEKS.",
+                    6: "PLACE -> GUARD -> START. DO NOT PANIC WHEN IT BREAKS.",
+                    7: "FORMULA: (LOAD IN kN * 1000) / 22500"
+                };
+                
+                if(hints[this.currentLevel]) {
+                    UI.alert("HINT SYSTEM", hints[this.currentLevel], "info");
+                    this.xp = Math.max(0, this.xp - 10);
+                    UI.updateXP(this.xp);
+                } else {
+                    UI.alert("HINT SYSTEM", "READ BRIEFING DATA CAREFULLY.", "info");
+                }
+            },
+
+            startTimer() {
+                this.stopTimer();
+                if (this.currentLevel <= 1) return;
+                
+                this.timeLeft = 35;
+                const timerEl = document.getElementById('hud-timer');
+                timerEl.classList.remove('hidden');
+                timerEl.classList.add('flex');
+                
+                const livesContainer = document.getElementById('hud-lives');
+                if (livesContainer) {
+                    livesContainer.classList.remove('hidden');
+                    livesContainer.classList.add('flex');
+                }
+
+                this.updateTimerUI();
+                
+                this.timerInterval = setInterval(() => {
+                    if (!this.isPaused) {
+                        this.timeLeft--;
+                        this.updateTimerUI();
+                        if (this.timeLeft <= 0) {
+                            this.timeUp();
+                        }
+                    }
+                }, 1000);
+            },
+
+            stopTimer() {
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                const timerEl = document.getElementById('hud-timer');
+                if (timerEl) {
+                    timerEl.classList.add('hidden');
+                    timerEl.classList.remove('flex');
+                }
+                const livesContainer = document.getElementById('hud-lives');
+                if (livesContainer) {
+                    livesContainer.classList.add('hidden');
+                    livesContainer.classList.remove('flex');
+                }
+            },
+
+            updateTimerUI() {
+                const el = document.getElementById('hud-time-val');
+                if (el) {
+                    el.innerText = this.timeLeft + 'S';
+                    if (this.timeLeft <= 10) {
+                        el.parentElement.classList.add('blinking-text');
+                    } else {
+                        el.parentElement.classList.remove('blinking-text');
+                    }
+                }
+            },
+
+            timeUp() {
+                this.isPaused = true;
+                this.stopTimer();
+                this.attempts--;
+                this.updateLivesUI();
+                
+                if (this.attempts > 0) {
+                    UI.alert("TIME OUT!", `MISSION FAILED! YOU RAN OUT OF TIME.<br>ATTEMPTS LEFT: ${this.attempts}`, "error");
+                    
+                    setTimeout(() => {
+                        if (document.getElementById('modal-alert').classList.contains('active')) {
+                            UI.hideAlert();
+                            this.restartLevel();
+                        }
+                    }, 3000);
+                } else {
+                    this.gameOver();
+                }
+            },
+
+            gameOver() {
+                this.isPaused = true;
+                this.showModal('modal-gameover');
+                AudioSys.stopMusic();
+                AudioSys.playError();
+                
+                if (AudioSys.initialized && !AudioSys.isMuted) {
+                    const now = Tone.now();
+                    AudioSys.synth.triggerAttackRelease("C3", "4n", now);
+                    AudioSys.synth.triggerAttackRelease("G2", "4n", now + 0.3);
+                    AudioSys.synth.triggerAttackRelease("C2", "2n", now + 0.6);
+                }
+            }
+        };
+
+        // --- STREAMING_CHUNK:Level Specific Logic ---
+        
+        Levels = {};
+        
+        Levels.level2 = {
+            equipment: [
+                { id: 'mould', name: 'CUBE MOULD', icon: 'fa-box', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Concrete_cubes_cast_in_moulds.jpg/320px-Concrete_cubes_cast_in_moulds.jpg', correct: true },
+                { id: 'rod', name: 'TAMPING ROD', icon: 'fa-magic', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Steel_rod_for_concrete.jpg/320px-Steel_rod_for_concrete.jpg', correct: true },
+                { id: 'trowel', name: 'STEEL TROWEL', icon: 'fa-trowel', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Trowel.jpg/320px-Trowel.jpg', correct: true },
+                { id: 'oil', name: 'MOULD OIL', icon: 'fa-oil-can', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Oil_can_2.jpg/320px-Oil_can_2.jpg', correct: true },
+                { id: 'spade', name: 'SCOOP', icon: 'fa-spoon', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Metal_scoop.jpg/320px-Metal_scoop.jpg', correct: true },
+                { id: 'pan', name: 'MIXING PAN', icon: 'fa-inbox', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Wheelbarrow.jpg/320px-Wheelbarrow.jpg', correct: true },
+                { id: 'goggles', name: 'GOGGLES', icon: 'fa-glasses', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Safety_glasses.jpg/320px-Safety_glasses.jpg', correct: false },
+                { id: 'tape', name: 'TAPE MEASURE', icon: 'fa-tape', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Tape_measure_1.jpg/320px-Tape_measure_1.jpg', correct: false },
+                { id: 'hammer', name: 'SCHMIDT HAMMER', icon: 'fa-hammer', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Schmidt_hammer.jpg/320px-Schmidt_hammer.jpg', correct: false }
+            ],
+            selected: [],
+            
+            init() {
+                this.selected = [];
+                this.renderGrid();
+                this.renderTable();
+            },
+
+            getImgHtml(item, sizeClass) {
+                const fallback = `this.onerror=null; this.outerHTML='<div class=\\'flex items-center justify-center bg-gray-200 border-2 border-black ${sizeClass}\\'><i class=\\'fas ${item.icon} text-3xl text-gray-700\\'></i></div>';`;
+                return `<img src="${item.img}" onerror="${fallback}" class="${sizeClass} object-cover retro-img mb-2" alt="${item.name}" onmouseenter="this.classList.add('retro-img-active')" onmouseleave="this.classList.remove('retro-img-active')">`;
+            },
+            
+            renderGrid() {
+                const grid = document.getElementById('l2-equipment-grid');
+                grid.innerHTML = '';
+                this.equipment.forEach(item => {
+                    if(!this.selected.includes(item.id)) {
+                        const btn = document.createElement('div');
+                        btn.className = 'bg-white p-2 border-4 border-black flex flex-col items-center justify-center draggable-item shadow-[4px_4px_0_#000] h-32';
+                        
+                        btn.innerHTML = `
+                            ${this.getImgHtml(item, 'w-16 h-16')}
+                            <span class="font-arcade text-[10px] text-center text-black leading-tight mt-1 font-bold">${item.name}</span>
+                        `;
+                        btn.onclick = () => { AudioSys.playClick(); this.selectItem(item.id); };
+                        grid.appendChild(btn);
+                    }
+                });
+            },
+            
+            renderTable() {
+                const table = document.getElementById('l2-lab-table');
+                const placeholder = document.getElementById('l2-table-placeholder');
+                
+                Array.from(table.children).forEach(c => {
+                    if(c.id !== 'l2-table-placeholder') c.remove();
+                });
+                
+                if(this.selected.length > 0) placeholder.classList.add('hidden');
+                else placeholder.classList.remove('hidden');
+
+                this.selected.forEach(id => {
+                    const item = this.equipment.find(i => i.id === id);
+                    const el = document.createElement('div');
+                    el.className = 'bg-[#FFF9C4] border-4 border-black p-3 w-32 h-40 flex flex-col items-center justify-center draggable-item shadow-[4px_4px_0_#000]';
+                    el.innerHTML = `
+                        ${this.getImgHtml(item, 'w-20 h-20')}
+                        <span class="font-arcade text-[10px] text-center leading-tight text-black mt-2 font-bold">${item.name}</span>
+                    `;
+                    el.onclick = () => { AudioSys.playClick(); this.deselectItem(id); };
+                    table.appendChild(el);
+                });
+
+                document.getElementById('l2-count').innerText = this.selected.length;
+                
+                const btn = document.getElementById('l2-verify-btn');
+                if(this.selected.length === 6) {
+                    btn.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    btn.classList.add('opacity-50', 'pointer-events-none');
+                }
+            },
+            
+            selectItem(id) {
+                if(this.selected.length < 6) {
+                    this.selected.push(id);
+                    this.renderGrid();
+                    this.renderTable();
+                } else {
+                    UI.alert("ERROR", "INVENTORY FULL. DESELECT ITEMS TO PROCEED.", "error");
+                }
+            },
+            
+            deselectItem(id) {
+                this.selected = this.selected.filter(i => i !== id);
+                this.renderGrid();
+                this.renderTable();
+            },
+            
+            verify() {
+                let correctCount = 0;
+                this.selected.forEach(id => {
+                    if(this.equipment.find(i => i.id === id).correct) correctCount++;
+                });
+
+                if(correctCount === 6) {
+                    UI.alert("SUCCESS", "ALL CRITICAL ITEMS ACQUIRED.", "success");
+                    setTimeout(() => Game.nextLevel(), 1500);
+                } else {
+                    UI.alert("FAILED", "INCORRECT LOADOUT DETECTED. REVIEW MS EN 12390 STANDARD.", "error");
+                }
+            }
+        };
+
+        Levels.level3 = {
+            mixes: [
+                { c: 1, s: 2, a: 4, name: '1:2:4' },
+                { c: 1, s: 3, a: 6, name: '1:3:6' }
+            ],
+            target: {},
+            current: {},
+            totalTarget: 0,
+            currentTotal: 0,
+            
+            init() {
+                // Randomly select a mix ratio
+                const mix = this.mixes[Math.floor(Math.random() * this.mixes.length)];
+                this.target = { coarse: mix.a, sand: mix.s, cement: mix.c, water: 1 }; // Water default to 1 part
+                this.current = { coarse: 0, sand: 0, cement: 0, water: 0 };
+                this.currentTotal = 0;
+                this.totalTarget = mix.a + mix.s + mix.c + 1;
+                
+                // Display target to player
+                document.getElementById('l3-ratio-text').innerText = mix.name;
+                
+                this.updateVisuals();
+                document.getElementById('l3-mixer-fill').style.height = '0%';
+                
+                const surface = document.getElementById('l3-mixer-surface');
+                surface.classList.remove('animate-[spin_1s_linear_infinite]');
+                surface.classList.add('animate-[spin_4s_linear_infinite]');
+            },
+            
+            addMaterial(mat) {
+                AudioSys.playClick();
+                
+                // Determine what material is expected next based on sequence
+                let expected = '';
+                if (this.current.coarse < this.target.coarse) expected = 'coarse';
+                else if (this.current.sand < this.target.sand) expected = 'sand';
+                else if (this.current.cement < this.target.cement) expected = 'cement';
+                else if (this.current.water < this.target.water) expected = 'water';
+                
+                if (mat === expected) {
+                    // Play drop animation
+                    const dropZone = document.getElementById('l3-drop-zone');
+                    const drop = document.createElement('div');
+                    const colors = { coarse: 'bg-gray-400', sand: 'bg-yellow-300', cement: 'bg-gray-600', water: 'bg-blue-400' };
+                    
+                    drop.className = `w-8 h-8 ${colors[mat]} border-4 border-black absolute animate-drop z-30 shadow-[2px_2px_0_#000]`;
+                    dropZone.appendChild(drop);
+                    
+                    const drum = document.getElementById('l3-mixer-drum');
+                    drum.classList.add('anim-shake');
+                    
+                    this.current[mat]++;
+                    this.currentTotal++;
+                    this.updateVisuals();
+                    
+                    setTimeout(() => {
+                        if (drop.parentNode) drop.remove();
+                        drum.classList.remove('anim-shake');
+                        
+                        // Check if total mix is complete
+                        if (this.currentTotal === this.totalTarget) {
+                            const innerSpin = document.getElementById('l3-mixer-surface');
+                            innerSpin.classList.remove('animate-[spin_4s_linear_infinite]');
+                            innerSpin.classList.add('animate-[spin_1s_linear_infinite]');
+                            AudioSys.playMachineStart();
+                            
+                            setTimeout(() => {
+                                AudioSys.playMachineStop();
+                                UI.alert("COMPLETE", "CONCRETE MIX PREPARED TO CORRECT RATIO.", "success");
+                                setTimeout(() => Game.nextLevel(), 1500);
+                            }, 2500);
+                        }
+                    }, 500);
+                    
+                } else {
+                    UI.alert("ERROR", `WRONG SEQUENCE OR AMOUNT!<br>SEQUENCE: COARSE > SAND > CEMENT > WATER.<br>TARGET RATIO: ${this.target.cement}:${this.target.sand}:${this.target.coarse}`, "error");
+                    this.init(); // Reset the mix
+                }
+            },
+            
+            updateVisuals() {
+                const percent = (this.currentTotal / this.totalTarget) * 100;
+                document.getElementById('l3-progress-bar').style.width = percent + '%';
+                document.getElementById('l3-progress-text').innerText = `${this.currentTotal}/${this.totalTarget}`;
+                
+                const fill = document.getElementById('l3-mixer-fill');
+                fill.style.height = (percent * 0.9) + '%';
+                
+                // Color calculation based on stages 
+                const mixColors = ['transparent', '#9CA3AF', '#D1D5DB', '#6B7280', '#4B5563'];
+                let colorStage = Math.floor((this.currentTotal / this.totalTarget) * 4);
+                if(colorStage > 4) colorStage = 4;
+                fill.style.backgroundColor = mixColors[colorStage];
+                
+                // Update badge counters on buttons
+                document.getElementById('l3-count-coarse').innerText = `${this.current.coarse}/${this.target.coarse}`;
+                document.getElementById('l3-count-sand').innerText = `${this.current.sand}/${this.target.sand}`;
+                document.getElementById('l3-count-cement').innerText = `${this.current.cement}/${this.target.cement}`;
+                document.getElementById('l3-count-water').innerText = `${this.current.water}/${this.target.water}`;
+                
+                // Update sequence display logic
+                const display = document.getElementById('l3-sequence-display');
+                display.innerHTML = '';
+                const names = { coarse: 'C.AGG', sand: 'SAND', cement: 'CEMNT', water: 'WATER' };
+                
+                ['coarse', 'sand', 'cement', 'water'].forEach(mat => {
+                    if (this.current[mat] === this.target[mat] && this.target[mat] > 0) {
+                        const badge = document.createElement('div');
+                        badge.className = 'bg-white border-2 border-black shadow-[2px_2px_0_#000] text-lab-success px-2 py-1 font-arcade text-[10px] animate-fade-in flex items-center gap-1 font-bold';
+                        badge.innerHTML = `<i class="fas fa-check text-black"></i> ${names[mat]} OK`;
+                        display.appendChild(badge);
+                    }
+                });
+            }
+        };
+
+        Levels.level4 = {
+            state: 'fill1', 
+            tamps: 0,
+            
+            init() {
+                this.state = 'fill1';
+                this.tamps = 0;
+                document.getElementById('l4-layer-1').style.height = '0';
+                document.getElementById('l4-layer-2').style.height = '0';
+                document.getElementById('l4-layer-3').style.height = '0';
+                document.getElementById('l4-layer-3').classList.remove('border-t-8', 'border-gray-500');
+                document.getElementById('l4-label').style.opacity = '0';
+                this.updateUI();
+            },
+            
+            action(type) {
+                AudioSys.playClick();
+                let correctAction = false;
+
+                if(type === 'fill') {
+                    if(this.state === 'fill1') {
+                        document.getElementById('l4-layer-1').style.height = '33.3%';
+                        this.state = 'tamp1';
+                        correctAction = true;
+                    } else if(this.state === 'fill2') {
+                        document.getElementById('l4-layer-2').style.height = '33.3%';
+                        this.state = 'tamp2';
+                        correctAction = true;
+                    } else if(this.state === 'fill3') {
+                        document.getElementById('l4-layer-3').style.height = '33.4%';
+                        this.state = 'tamp3';
+                        correctAction = true;
+                    }
+                    if(correctAction) this.tamps = 0;
+                } 
+                else if (type === 'tamp') {
+                    if(this.state.startsWith('tamp')) {
+                        this.tamps++;
+                        document.getElementById('l4-tamp-val').innerText = this.tamps;
+                        
+                        const rod = document.getElementById('l4-rod');
+                        rod.style.opacity = '1';
+                        rod.classList.remove('anim-tamp');
+                        void rod.offsetWidth; 
+                        rod.classList.add('anim-tamp');
+                        
+                        if(this.tamps >= 35) {
+                            rod.style.opacity = '0';
+                            if(this.state === 'tamp1') this.state = 'fill2';
+                            else if(this.state === 'tamp2') this.state = 'fill3';
+                            else if(this.state === 'tamp3') this.state = 'level';
+                        }
+                        correctAction = true;
+                    }
+                }
+                else if (type === 'level') {
+                    if(this.state === 'level') {
+                        document.getElementById('l4-layer-3').classList.add('border-t-8', 'border-gray-500');
+                        this.state = 'label';
+                        correctAction = true;
+                    }
+                }
+                else if (type === 'label') {
+                    if(this.state === 'label') {
+                        document.getElementById('l4-label').style.opacity = '1';
+                        this.state = 'done';
+                        correctAction = true;
+                        UI.alert("SUCCESS", "MOULDING COMPLETE.", "success");
+                        setTimeout(() => Game.nextLevel(), 1500);
+                    }
+                }
+                
+                if (!correctAction && this.state !== 'done') {
+                    UI.alert("ERROR", "INCORRECT SEQUENCE! THINK ABOUT THE NEXT LOGICAL STEP.", "error");
+                } else {
+                    this.updateUI();
+                }
+            },
+            
+            updateUI() {
+                const instruction = document.getElementById('l4-task-instruction');
+                const counter = document.getElementById('l4-tamp-counter');
+                
+                counter.classList.add('hidden');
+                
+                switch(this.state) {
+                    case 'fill1':
+                        instruction.innerText = "AWAITING ACTION";
+                        break;
+                    case 'tamp1':
+                        instruction.innerText = "L1 FILLED";
+                        counter.classList.remove('hidden');
+                        break;
+                    case 'fill2':
+                        instruction.innerText = "L1 COMPLETED";
+                        break;
+                    case 'tamp2':
+                        instruction.innerText = "L2 FILLED";
+                        counter.classList.remove('hidden');
+                        break;
+                    case 'fill3':
+                        instruction.innerText = "L2 COMPLETED";
+                        break;
+                    case 'tamp3':
+                        instruction.innerText = "L3 FILLED";
+                        counter.classList.remove('hidden');
+                        break;
+                    case 'level':
+                        instruction.innerText = "MOULD FULL";
+                        break;
+                    case 'label':
+                        instruction.innerText = "SURFACE LEVELED";
+                        break;
+                }
+            }
+        };
+
+        Levels.level5 = {
+            init() {
+                document.getElementById('l5-step-1').classList.remove('hidden');
+                document.getElementById('l5-step-2').classList.add('hidden');
+            },
+            
+            selectEnvironment(env) {
+                if(env === 'water') {
+                    AudioSys.playSuccess();
+                    document.getElementById('l5-step-1').classList.add('hidden');
+                    document.getElementById('l5-step-2').classList.remove('hidden');
+                } else {
+                    UI.alert("FATAL ERROR", "IMPROPER CURING ENVIRONMENT CAUSES STRUCTURAL COMPROMISE.", "error");
+                }
+            },
+            
+            selectDays(days) {
+                if(days === 28) {
+                    UI.alert("SUCCESS", "28 DAYS IS THE STANDARD FOR CHARACTERISTIC STRENGTH.", "success");
+                    setTimeout(() => Game.nextLevel(), 1500);
+                } else {
+                    UI.alert("ERROR", "INCORRECT AGE PARAMETER FOR FINAL DESIGN VALIDATION.", "error");
+                }
+            }
+        };
+
+        Levels.level6 = {
+            state: 'idle', 
+            load: 0,
+            maxLoad: 0,
+            animFrame: null,
+            
+            init() {
+                this.state = 'idle';
+                this.load = 0;
+                this.maxLoad = Math.floor(Math.random() * 300) + 600; 
+                
+                document.getElementById('l6-cube').style.opacity = '0';
+                document.getElementById('l6-cube').style.transform = 'translateY(10px)';
+                document.getElementById('l6-guard').style.transform = 'translateY(100%)';
+                document.getElementById('l6-platen').style.transform = 'translateY(0)';
+                document.getElementById('l6-cracks').style.opacity = '0';
+                
+                this.updateDisplay(0);
+                this.updateUI();
+                
+                document.getElementById('l6-btn-next').classList.add('hidden');
+            },
+            
+            action(type) {
+                AudioSys.playClick();
+                if(type === 'place' && this.state === 'idle') {
+                    document.getElementById('l6-cube').style.opacity = '1';
+                    document.getElementById('l6-cube').style.transform = 'translateY(0)';
+                    this.state = 'placed';
+                }
+                else if(type === 'guard' && this.state === 'placed') {
+                    document.getElementById('l6-guard').style.transform = 'translateY(0)';
+                    this.state = 'guarded';
+                }
+                else if(type === 'start' && this.state === 'guarded') {
+                    this.state = 'running';
+                    document.getElementById('l6-led-power').classList.remove('bg-red-800');
+                    document.getElementById('l6-led-power').classList.add('bg-green-500');
+                    
+                    document.getElementById('l6-platen').style.transform = 'translateY(90px)';
+                    AudioSys.playMachineStart();
+                    
+                    this.lastTime = Date.now();
+                    this.simulate();
+                }
+                this.updateUI();
+            },
+            
+            simulate() {
+                if(this.state !== 'running') return;
+                
+                const now = Date.now();
+                const dt = now - this.lastTime;
+                this.lastTime = now;
+                
+                this.load += (dt * 0.25);
+                
+                this.updateDisplay(this.load);
+                
+                if(this.load >= this.maxLoad) {
+                    this.fail();
+                } else {
+                    this.animFrame = requestAnimationFrame(() => this.simulate());
+                }
+            },
+            
+            fail() {
+                this.state = 'done';
+                AudioSys.playMachineStop();
+                AudioSys.playCrack();
+                
+                document.getElementById('l6-cracks').style.opacity = '1';
+                document.getElementById('l6-platen').style.transitionDuration = '50ms';
+                document.getElementById('l6-platen').style.transform = 'translateY(95px)';
+                
+                Game.testResultLoad = this.maxLoad;
+                
+                document.getElementById('l6-led-power').classList.add('bg-red-800');
+                document.getElementById('l6-led-power').classList.remove('bg-green-500');
+                
+                this.updateUI();
+                document.getElementById('l6-btn-next').classList.remove('hidden');
+                
+                setTimeout(() => {
+                    this.updateDisplay(this.maxLoad);
+                }, 500);
+            },
+            
+            updateDisplay(val) {
+                let formatted = val.toFixed(1);
+                if(formatted.length < 5) formatted = '0' + formatted; 
+                document.getElementById('l6-digital-display').innerText = formatted;
+                document.getElementById('l6-gauge-read').innerText = Math.floor(val);
+                
+                let deg = -135 + (val / 1200) * 270;
+                if(deg > 135) deg = 135;
+                document.getElementById('l6-needle').style.transform = `rotate(${deg}deg)`;
+            },
+            
+            updateUI() {
+                const btnPlace = document.getElementById('l6-btn-place');
+                const btnGuard = document.getElementById('l6-btn-guard');
+                const btnStart = document.getElementById('l6-btn-start');
+                
+                [btnPlace, btnGuard, btnStart].forEach(b => {
+                    b.classList.add('opacity-50', 'pointer-events-none');
+                });
+                
+                if(this.state === 'idle') {
+                    btnPlace.classList.remove('opacity-50', 'pointer-events-none');
+                } else if(this.state === 'placed') {
+                    btnGuard.classList.remove('opacity-50', 'pointer-events-none');
+                } else if(this.state === 'guarded') {
+                    btnStart.classList.remove('opacity-50', 'pointer-events-none');
+                }
+            }
+        };
+
+        Levels.level7 = {
+            targetStrength: 0,
+            
+            init() {
+                const load = Game.testResultLoad || 750; 
+                document.getElementById('l7-load-val').innerText = load.toFixed(1) + ' kN';
+                
+                const loadN = load * 1000;
+                const area = 22500;
+                this.targetStrength = loadN / area;
+                
+                document.getElementById('l7-input').value = '';
+            },
+            
+            verify() {
+                const input = parseFloat(document.getElementById('l7-input').value);
+                
+                if(isNaN(input)) {
+                    UI.alert("INVALID", "NUMERIC INPUT REQUIRED.", "error");
+                    return;
+                }
+                
+                if(Math.abs(input - this.targetStrength) <= 0.2) {
+                    UI.alert("CALCULATION VERIFIED", `COMPRESSIVE STRENGTH: ${this.targetStrength.toFixed(1)} MPa.`, "success");
+                    setTimeout(() => Game.nextLevel(), 2000);
+                } else {
+                    UI.alert("ERROR", `MATH SEQUENCE FAILED. (LOAD IN kN × 1000) ÷ 22500. RECALCULATE.`, "error");
+                }
+            }
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && Game.currentLevel > 0) {
+                Game.showModal('modal-pause');
+            }
+        });
+
+    </script>
+</body>
+</html>
